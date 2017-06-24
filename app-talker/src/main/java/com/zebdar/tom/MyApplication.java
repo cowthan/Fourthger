@@ -9,6 +9,7 @@ import com.nostra13.universalimageloader.cache.disc.naming.Md5FileNameGenerator;
 import com.nostra13.universalimageloader.core.ImageLoader;
 import com.nostra13.universalimageloader.core.ImageLoaderConfiguration;
 import com.nostra13.universalimageloader.core.assist.QueueProcessingType;
+import com.zebdar.tom.sdk.DqdCore;
 
 /*
                    _ooOoo_
@@ -59,6 +60,15 @@ public class MyApplication extends Application {
 		// 以下语句用于设置日志开关（默认开启），设置成false时关闭语音云SDK日志打印
 		// Setting.setShowLog(false);
 		LogUtil.isShowLog=true;//是否打印log
+
+
+		if (SysUtils.extraUse()) {
+			SysUtils.initFiles();
+		} else {
+			ToastUtil.showToast(this, "请安装存储卡");
+		}
+
+		DqdCore.init(this, BuildConfig.DEBUG);
 	}
 	
 	public  void initImageLoader(Context context) {

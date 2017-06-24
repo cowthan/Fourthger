@@ -2,7 +2,6 @@ package com.zebdar.tom.speech;
 
 import android.app.Activity;
 import android.text.TextUtils;
-import android.widget.EditText;
 
 import com.iflytek.cloud.ErrorCode;
 import com.iflytek.cloud.InitListener;
@@ -15,6 +14,7 @@ import com.iflytek.cloud.ui.RecognizerDialogListener;
 import com.zebdar.tom.Const;
 import com.zebdar.tom.PraseUtil;
 import com.zebdar.tom.PreferencesUtils;
+import com.zebdar.tom.SysUtils;
 import com.zebdar.tom.ToastUtil;
 
 import org.json.JSONException;
@@ -37,17 +37,42 @@ public class SpeechRecognizerUtil {
 
     private HashMap<String, String> mIatResults;
 
-    EditText editText;
+    private SpeechInitCallback callback;
 
-    RecoListener recoListener;
-
-    boolean isShowInEditText;
-
-    public SpeechRecognizerUtil(Activity context) {
+    public SpeechRecognizerUtil(Activity context, final SpeechInitCallback callbackk) {
         this.context = context;
         // 初始化识别对象
-        mIat = SpeechRecognizer.createRecognizer(context, mInitListener);
-        mIatDialog = new RecognizerDialog(context, mInitListener);
+        this.callback = callbackk;
+        mIat = SpeechRecognizer.createRecognizer(context, new InitListener() {
+            @Override
+            public void onInit(int code) {
+                if (code != ErrorCode.SUCCESS) {
+//                    ToastUtil.showToast(context, "初始化失败，错误码：" + code);
+                    if(callback != null){
+                        callbackk.onInitFail(code);
+                    }
+                }else{
+                    if(callback != null){
+                        callbackk.onInitOk();
+                    }
+                }
+            }
+        });
+        mIatDialog = new RecognizerDialog(context, new InitListener() {
+            @Override
+            public void onInit(int code) {
+                if (code != ErrorCode.SUCCESS) {
+//                    ToastUtil.showToast(context, "初始化失败，错误码：" + code);
+                    if(callback != null){
+                        callbackk.onInitFail(code);
+                    }
+                }else{
+                    if(callback != null){
+                        callbackk.onInitOk();
+                    }
+                }
+            }
+        });
         mIatResults = new LinkedHashMap<>();
         setParamIat();
     }
@@ -55,12 +80,9 @@ public class SpeechRecognizerUtil {
     /**
      * 录音
      *
-     * @param editText isShowInEditText 录音完成后是否将文本显示在编辑框中
      */
-    public void say(EditText editText, boolean isShowInEditText) {
-        this.editText = editText;
-        this.isShowInEditText = isShowInEditText;
-        mIatDialog.setListener(mRecognizerDialogListener);
+    public void recordAndTranslate(SpeechCallback callback) {
+        mIatDialog.setListener(new MyRecognizerDialogListener(callback));
         mIatDialog.show();
     }
 
@@ -104,22 +126,18 @@ public class SpeechRecognizerUtil {
         mIat.setParameter(SpeechConstant.ASR_AUDIO_PATH, Const.FILE_VOICE_CACHE + "iat.wav");
     }
 
-    /**
-     * 语音听写初始化监听器。
-     */
-    private InitListener mInitListener = new InitListener() {
-        @Override
-        public void onInit(int code) {
-            if (code != ErrorCode.SUCCESS) {
-                ToastUtil.showToast(context, "初始化失败，错误码：" + code);
-            }
-        }
-    };
 
     /**
      * 语音听写UI监听器
      */
-    private RecognizerDialogListener mRecognizerDialogListener = new RecognizerDialogListener() {
+    private class MyRecognizerDialogListener implements RecognizerDialogListener {
+
+        private SpeechCallback callback;
+
+        private MyRecognizerDialogListener(SpeechCallback callback){
+            this.callback = callback;
+        }
+
         public void onResult(RecognizerResult results, boolean isLast) {
             String text = PraseUtil.parseIatResult(results.getResultString());
             String sn = null;
@@ -135,13 +153,27 @@ public class SpeechRecognizerUtil {
             for (String key : mIatResults.keySet()) {
                 resultBuffer.append(mIatResults.get(key));
             }
-            if (isShowInEditText && editText != null) {
-                editText.setText(resultBuffer.toString());
-                editText.setSelection(editText.length());
+
+
+
+//            if (isShowInEditText && editText != null) {
+//                editText.setText(resultBuffer.toString());
+//                editText.setSelection(editText.length());
+//            }
+            if (isLast) {
+                if(callback != null){
+                    String voicepath = Const.FILE_VOICE_CACHE + System.currentTimeMillis() + ".wav";
+                    if (SysUtils.copyFile(Const.FILE_VOICE_CACHE + "iat.wav", voicepath)) {
+                        callback.onRecognizedOk(resultBuffer.toString(), voicepath, isLast);
+                    } else {
+                        callback.onRecognizedFail("保存语音文件失败！");
+                    }
+
+                }
             }
-            if (!isShowInEditText&&isLast && recoListener != null) {
-                recoListener.recoComplete(resultBuffer.toString());
-            }
+
+//            /////====临时加的，还得改
+//            activity.sendMsgText(resultBuffer.toString(), false);
         }
 
         /**
@@ -151,15 +183,6 @@ public class SpeechRecognizerUtil {
             ToastUtil.showToast(context, error.getPlainDescription(true));
         }
 
-    };
-
-    public void setRecoListener(RecoListener recoListener) {
-        this.recoListener = recoListener;
-    }
-
-
-    public interface RecoListener {
-        void recoComplete(String text);
     }
 
 }

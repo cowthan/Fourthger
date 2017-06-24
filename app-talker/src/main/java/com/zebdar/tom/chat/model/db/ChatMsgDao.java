@@ -1,15 +1,16 @@
-package com.zebdar.tom.db;
+package com.zebdar.tom.chat.model.db;
 
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
-import com.zebdar.tom.bean.Msg;
+import com.zebdar.tom.chat.model.IMessageDao;
+import com.zebdar.tom.chat.model.IMMsg;
 
 import java.util.ArrayList;
 
-public class ChatMsgDao {
+public class ChatMsgDao implements IMessageDao{
     private DBHelper helper;
 
     public ChatMsgDao(Context context) {
@@ -25,7 +26,7 @@ public class ChatMsgDao {
      *
      * @param msg
      */
-    public int insert(Msg msg) {
+    public int insert(IMMsg msg) {
         SQLiteDatabase db = helper.getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put(DBcolumns.MSG_FROM, msg.getFromUser());
@@ -75,15 +76,15 @@ public class ChatMsgDao {
      *
      * @return
      */
-    public ArrayList<Msg> queryMsg(String from, String to, int offset) {
-        ArrayList<Msg> list = new ArrayList<Msg>();
+    public ArrayList<IMMsg> queryMsg(String from, String to, int offset) {
+        ArrayList<IMMsg> list = new ArrayList<IMMsg>();
         SQLiteDatabase db = helper.getWritableDatabase();
         String sql = "select * from " + DBcolumns.TABLE_MSG + " where " + DBcolumns.MSG_FROM + "=? and " + DBcolumns.MSG_TO + "=? order by " + DBcolumns.MSG_ID + " desc limit ?,?";
         String[] args = new String[]{from, to, String.valueOf(offset), "15"};
         Cursor cursor = db.rawQuery(sql, args);
-        Msg msg = null;
+        IMMsg msg = null;
         while (cursor.moveToNext()) {
-            msg = new Msg();
+            msg = new IMMsg();
             msg.setMsgId(cursor.getInt(cursor.getColumnIndex(DBcolumns.MSG_ID)));
             msg.setFromUser(cursor.getString(cursor.getColumnIndex(DBcolumns.MSG_FROM)));
             msg.setToUser(cursor.getString(cursor.getColumnIndex(DBcolumns.MSG_TO)));
@@ -110,15 +111,15 @@ public class ChatMsgDao {
      *
      * @return
      */
-    public Msg queryTheLastMsg() {
+    public IMMsg queryTheLastMsg() {
         SQLiteDatabase db = helper.getWritableDatabase();
         String sql = "select * from " + DBcolumns.TABLE_MSG + " order by " + DBcolumns.MSG_ID + " desc limit 1";
         String[] args = new String[]{};
         Cursor cursor = db.rawQuery(sql, args);
 
-        Msg msg = null;
+        IMMsg msg = null;
         while (cursor.moveToNext()) {
-            msg = new Msg();
+            msg = new IMMsg();
             msg.setMsgId(cursor.getInt(cursor.getColumnIndex(DBcolumns.MSG_ID)));
             msg.setFromUser(cursor.getString(cursor.getColumnIndex(DBcolumns.MSG_FROM)));
             msg.setToUser(cursor.getString(cursor.getColumnIndex(DBcolumns.MSG_TO)));

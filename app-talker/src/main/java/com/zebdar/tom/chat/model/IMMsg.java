@@ -1,4 +1,4 @@
-package com.zebdar.tom.bean;
+package com.zebdar.tom.chat.model;
 
 import java.io.Serializable;
 
@@ -7,17 +7,24 @@ import java.io.Serializable;
  * @author 白玉梁
  */
 @SuppressWarnings("serial")
-public class Msg implements Serializable {
+public class IMMsg implements Serializable {
 
 	private int msgId;//id
 	private String fromUser;//发送者
 	private String toUser;//接收者
-	private String type;//信息类型
-	private String content;//信息内容
-	private String url;//图片或语音链接
-	private int isComing;//0表接收的消息，1表发送的消息
 	private String date;//时间
 	private String isReaded;//是否已读
+	private int isComing;//0表接收的消息，1表发送的消息
+	private String type;//信息类型
+
+	////
+	IMMessageBody body;
+
+
+
+	/////
+	private String content;//信息内容
+	private String url;//图片或语音链接
 	private String jsoninfo;//
 	
 	private String bak1;//扩展1 //音乐是否正在播放 0未播放 1正在播放

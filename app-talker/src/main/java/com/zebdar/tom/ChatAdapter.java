@@ -14,7 +14,8 @@ import android.widget.TextView;
 
 import com.zebdar.tom.bean.Answer;
 import com.zebdar.tom.bean.Cook;
-import com.zebdar.tom.bean.Msg;
+import com.zebdar.tom.chat.MessageTypes;
+import com.zebdar.tom.chat.model.IMMsg;
 import com.zebdar.tom.bean.News;
 
 import net.tsz.afinal.FinalBitmap;
@@ -28,7 +29,7 @@ import java.util.List;
  * @author baiyuliang
  * @ClassName: MessageChatAdapter
  */
-public class ChatAdapter extends BaseListAdapter<Msg> {
+public class ChatAdapter extends BaseListAdapter<IMMsg> {
 
     //文本
     private final int TYPE_RECEIVER_TXT = 0;
@@ -50,7 +51,7 @@ public class ChatAdapter extends BaseListAdapter<Msg> {
     private FinalBitmap finalImageLoader;
     OnClickMsgListener onClickMsgListener;
 
-    public ChatAdapter(Context context, List<Msg> msgList, OnClickMsgListener onClickMsgListener) {
+    public ChatAdapter(Context context, List<IMMsg> msgList, OnClickMsgListener onClickMsgListener) {
         super(context, msgList);
         mContext = context;
         finalImageLoader = FinalBitmap.create(context);
@@ -60,7 +61,7 @@ public class ChatAdapter extends BaseListAdapter<Msg> {
     //获取item类型
     @Override
     public int getItemViewType(int position) {
-        Msg msg = list.get(position);
+        IMMsg msg = list.get(position);
         switch (msg.getType()) {
             case MessageTypes.MSG_TYPE_TEXT:
                 return msg.getIsComing() == 0 ? TYPE_RECEIVER_TXT : TYPE_SEND_TXT;
@@ -91,7 +92,7 @@ public class ChatAdapter extends BaseListAdapter<Msg> {
      * @param position
      * @return
      */
-    private View createViewByType(Msg msg, int position) {
+    private View createViewByType(IMMsg msg, int position) {
         switch (msg.getType()) {
             case MessageTypes.MSG_TYPE_TEXT://文本
                 return getItemViewType(position) == TYPE_RECEIVER_TXT ? createView(R.layout.item_chat_text_rece) : createView(R.layout.item_chat_text_sent);
@@ -116,7 +117,7 @@ public class ChatAdapter extends BaseListAdapter<Msg> {
 
     @Override
     public View bindView(final int position, View convertView, ViewGroup parent) {
-        final Msg msg = list.get(position);
+        final IMMsg msg = list.get(position);
         if (convertView == null) {
             convertView = createViewByType(msg, position);
         }

@@ -1,4 +1,4 @@
-package com.zebdar.tom.db;
+package com.zebdar.tom.chat.model.db;
 
 
 import android.content.Context;

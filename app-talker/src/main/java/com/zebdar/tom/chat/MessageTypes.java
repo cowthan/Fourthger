@@ -1,4 +1,4 @@
-package com.zebdar.tom;
+package com.zebdar.tom.chat;
 
 /**
  * Created by Administrator on 2017/6/23.

@@ -19,7 +19,13 @@ public class SysUtils {
     public static void startActivity(Activity a, Class<?> c, Bundle b){
         Toast.makeText(a, "打开页面", Toast.LENGTH_SHORT).show();
     }
-
+    public static final boolean extraUse() {
+        String status = Environment.getExternalStorageState();
+        if (status.equals(Environment.MEDIA_MOUNTED)) {
+            return true;
+        }
+        return false;
+    }
 
     /**
      * 创建文件夹

@@ -19,6 +19,7 @@ public class SpeechSynthesizerUtil {
 
     Activity context;
     private SpeechSynthesizer mTts;
+//    private SpeechCallback callback;
 
     public SpeechSynthesizerUtil(Activity context) {
         this.context = context;

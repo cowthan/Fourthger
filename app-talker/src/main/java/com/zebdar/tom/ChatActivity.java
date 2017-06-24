@@ -22,13 +22,19 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.zebdar.tom.bean.Answer;
-import com.zebdar.tom.bean.Msg;
 import com.zebdar.tom.bean.Music;
-import com.zebdar.tom.db.ChatMsgDao;
+import com.zebdar.tom.chat.MessageTypes;
+import com.zebdar.tom.chat.model.IMessageDao;
+import com.zebdar.tom.chat.model.IMMsg;
+import com.zebdar.tom.chat.model.memdb.MessageCache;
 import com.zebdar.tom.music.MusicPlayManager;
 import com.zebdar.tom.music.MusicSearchUtil;
+import com.zebdar.tom.sdk.Lang;
+import com.zebdar.tom.speech.SpeechCallback;
+import com.zebdar.tom.speech.SpeechInitCallback;
 import com.zebdar.tom.speech.SpeechRecognizerUtil;
 import com.zebdar.tom.speech.SpeechSynthesizerUtil;
+import com.zebdar.tom.utils.ActionSheetBottomDialog;
 
 import net.tsz.afinal.FinalHttp;
 import net.tsz.afinal.http.AjaxCallBack;
@@ -49,14 +55,14 @@ import java.util.List;
  */
 @SuppressLint("SimpleDateFormat")
 public class ChatActivity extends AppBaseActivity implements DropdownListView.OnRefreshListenerHeader,
-        ChatAdapter.OnClickMsgListener, SpeechRecognizerUtil.RecoListener {
+        ChatAdapter.OnClickMsgListener{
     private ViewPager mViewPager;
     private LinearLayout mDotsLayout;
     private EditText input;
     private TextView send;
     private DropdownListView mListView;
     private ChatAdapter mLvAdapter;
-    private ChatMsgDao msgDao;
+    private IMessageDao msgDao;
 
     private LinearLayout chat_face_container, chat_add_container;
     private ImageView image_face;//表情图标
@@ -81,7 +87,7 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
     //表情列表
     private List<String> staticFacesList;
     //消息
-    private List<Msg> listMsg;
+    private List<IMMsg> listMsg;
     private SimpleDateFormat sd;
     private LayoutInflater inflater;
     private int offset;
@@ -132,7 +138,7 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
         fh = new FinalHttp();
         inflater = (LayoutInflater) getSystemService(LAYOUT_INFLATER_SERVICE);
         sd = new SimpleDateFormat("MM-dd HH:mm");
-        msgDao = new ChatMsgDao(this);
+        msgDao = new MessageCache(); //new ChatMsgDao(this);
         staticFacesList = ExpressionUtil.initStaticFaces(this);
         voice_type = PreferencesUtils.getSharePreStr(this, Const.IM_VOICE_TPPE);
         //初始化控件
@@ -148,8 +154,16 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
     }
 
     private void initSpeech() {
-        speechRecognizerUtil = new SpeechRecognizerUtil(this);
-        speechRecognizerUtil.setRecoListener(this);
+        speechRecognizerUtil = new SpeechRecognizerUtil(this, new SpeechInitCallback() {
+            @Override
+            public void onInitOk() {
+            }
+
+            @Override
+            public void onInitFail(int code) {
+                ToastUtil.showToast(ChatActivity.this, "初始化失败，错误码：" + code);
+            }
+        });
         speechSynthesizerUtil = new SpeechSynthesizerUtil(this);
     }
 
@@ -319,11 +333,23 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
                 }
                 break;
             case R.id.image_voice://点击语音按钮
-                if (!TextUtils.isEmpty(voice_type) && voice_type.equals("1")) {//以语音形式发送
-                    speechRecognizerUtil.say(input, false);
-                } else {//以文本形式发送
-                    speechRecognizerUtil.say(input, true);
-                }
+
+                speechRecognizerUtil.recordAndTranslate(new SpeechCallback() {
+                    @Override
+                    public void onRecognizedOk(String textResult, String audioPath, boolean isLast) {
+                        sendMsgVoice(audioPath + Const.SPILT + textResult);
+                        sendMsgText(textResult, false);
+                        if(Lang.isEquals(textResult, "四哥")){
+                            speechSynthesizerUtil.speech("干啥");
+                        }
+                    }
+
+                    @Override
+                    public void onRecognizedFail(String reason) {
+                        ToastUtil.showToast(getApplication(), reason);
+                    }
+                });
+
                 break;
             case R.id.tv_weather:
                 sendMsgText(PreferencesUtils.getSharePreStr(this, Const.CITY) + "天气", true);
@@ -368,25 +394,27 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
      *
      * @param content
      */
-    void sendMsgText(String content, boolean isReqApi) {
+    public void sendMsgText(String content, boolean isReqApi) {
         if (content.endsWith("##")) {
             ToastUtil.showToast(this, "输入有误");
             return;
         }
-        Msg msg = getChatInfoTo(content, MessageTypes.MSG_TYPE_TEXT);
+        IMMsg msg = getChatInfoTo(content, MessageTypes.MSG_TYPE_TEXT);
         msg.setMsgId(msgDao.insert(msg));
         listMsg.add(msg);
         offset = listMsg.size();
         mLvAdapter.notifyDataSetChanged();
         input.setText("");
         if (isReqApi) getFromMsg(MessageTypes.MSG_TYPE_TEXT, content);
+
+
     }
 
     /**
      * 执行发送消息 图片类型
      */
     void sendMsgImg(String imgpath) {
-        Msg msg = getChatInfoTo(imgpath, MessageTypes.MSG_TYPE_IMG);
+        IMMsg msg = getChatInfoTo(imgpath, MessageTypes.MSG_TYPE_IMG);
         msg.setMsgId(msgDao.insert(msg));
         listMsg.add(msg);
         offset = listMsg.size();
@@ -400,7 +428,7 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
      * @param content
      */
     void sendMsgLocation(String content) {
-        Msg msg = getChatInfoTo(content, MessageTypes.MSG_TYPE_LOCATION);
+        IMMsg msg = getChatInfoTo(content, MessageTypes.MSG_TYPE_LOCATION);
         msg.setMsgId(msgDao.insert(msg));
         listMsg.add(msg);
         offset = listMsg.size();
@@ -414,7 +442,7 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
      */
     void sendMsgVoice(String content) {
         String[] _content = content.split(Const.SPILT);
-        Msg msg = getChatInfoTo(content, MessageTypes.MSG_TYPE_VOICE);
+        IMMsg msg = getChatInfoTo(content, MessageTypes.MSG_TYPE_VOICE);
         msg.setMsgId(msgDao.insert(msg));
         listMsg.add(msg);
         offset = listMsg.size();
@@ -428,9 +456,9 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
      *
      * @return
      */
-    private Msg getChatInfoTo(String message, String msgtype) {
+    private IMMsg getChatInfoTo(String message, String msgtype) {
         String time = sd.format(new Date());
-        Msg msg = new Msg();
+        IMMsg msg = new IMMsg();
         msg.setFromUser(from);
         msg.setToUser(to);
         msg.setType(msgtype);
@@ -538,7 +566,7 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
      * @param responeContent
      */
     private void changeList(String msgtype, String responeContent) {
-        Msg msg = new Msg();
+        IMMsg msg = new IMMsg();
         msg.setIsComing(0);
         msg.setContent(responeContent);
         msg.setType(msgtype);
@@ -560,7 +588,7 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
 
     @Override
     public void click(int position) {//点击
-        Msg msg = listMsg.get(position);
+        IMMsg msg = listMsg.get(position);
         switch (msg.getType()) {
             case MessageTypes.MSG_TYPE_TEXT://文本
                 break;
@@ -603,7 +631,7 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
 
     @Override
     public void longClick(int position) {//长按
-        Msg msg = listMsg.get(position);
+        IMMsg msg = listMsg.get(position);
         switch (msg.getType()) {
             case MessageTypes.MSG_TYPE_TEXT://文本
                 clip(msg, position);
@@ -649,7 +677,7 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
      */
     void stopOldMusic() {
         for (int i = 0; i < listMsg.size(); i++) {
-            Msg msg = listMsg.get(i);
+            IMMsg msg = listMsg.get(i);
             if (!TextUtils.isEmpty(msg.getBak1()) && msg.getBak1().equals("1")) {
                 msg.setBak1("0");
                 listMsg.remove(i);
@@ -667,75 +695,74 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
     /**
      * 带复制文本的操作
      */
-    void clip(final Msg msg, final int position) {
+    void clip(final IMMsg msg, final int position) {
         ToastUtil.showToast(this, "带复制文本");
-//        new ActionSheetBottomDialog(this)
-//                .builder()
-//                .addSheetItem("复制", ActionSheetBottomDialog.SheetItemColor.Blue, new ActionSheetBottomDialog.OnSheetItemClickListener() {
-//                    @Override
-//                    public void onClick(int which) {
-//                        ClipboardManager cmb = (ClipboardManager) ChatActivity.this.getSystemService(ChatActivity.CLIPBOARD_SERVICE);
-//                        cmb.setText(msg.getContent());
-//                        ToastUtil.showToast(ChatActivity.this, "已复制到剪切板");
-//                    }
-//                })
-//                .addSheetItem("朗读", ActionSheetBottomDialog.SheetItemColor.Blue, new ActionSheetBottomDialog.OnSheetItemClickListener() {
-//                    @Override
-//                    public void onClick(int which) {
-//                        speechSynthesizerUtil.speech(msg.getContent());
-//                    }
-//                })
-//                .addSheetItem("删除", ActionSheetBottomDialog.SheetItemColor.Blue, new ActionSheetBottomDialog.OnSheetItemClickListener() {
-//                    @Override
-//                    public void onClick(int which) {
-//                        listMsg.remove(position);
-//                        offset = listMsg.size();
-//                        mLvAdapter.notifyDataSetChanged();
-//                        msgDao.deleteMsgById(msg.getMsgId());
-//                    }
-//                })
-//                .show();
+        new ActionSheetBottomDialog(this)
+                .builder()
+                .addSheetItem("复制", ActionSheetBottomDialog.SheetItemColor.Blue, new ActionSheetBottomDialog.OnSheetItemClickListener() {
+                    @Override
+                    public void onClick(int which) {
+                        Lang.copyToClipboard(msg.getContent());
+                        ToastUtil.showToast(ChatActivity.this, "已复制到剪切板");
+                    }
+                })
+                .addSheetItem("朗读", ActionSheetBottomDialog.SheetItemColor.Blue, new ActionSheetBottomDialog.OnSheetItemClickListener() {
+                    @Override
+                    public void onClick(int which) {
+                        speechSynthesizerUtil.speech(msg.getContent());
+                    }
+                })
+                .addSheetItem("删除", ActionSheetBottomDialog.SheetItemColor.Blue, new ActionSheetBottomDialog.OnSheetItemClickListener() {
+                    @Override
+                    public void onClick(int which) {
+                        listMsg.remove(position);
+                        offset = listMsg.size();
+                        mLvAdapter.notifyDataSetChanged();
+                        msgDao.deleteMsgById(msg.getMsgId());
+                    }
+                })
+                .show();
     }
 
     /**
      * 仅有删除操作
      */
-    void delonly(final Msg msg, final int position) {
+    void delonly(final IMMsg msg, final int position) {
 
         ToastUtil.showToast(this, "仅有删除操作");
-//        new ActionSheetBottomDialog(this)
-//                .builder()
-//                .addSheetItem("删除", ActionSheetBottomDialog.SheetItemColor.Blue, new ActionSheetBottomDialog.OnSheetItemClickListener() {
-//                    @Override
-//                    public void onClick(int which) {
-//                        listMsg.remove(position);
-//                        offset = listMsg.size();
-//                        mLvAdapter.notifyDataSetChanged();
-//                        msgDao.deleteMsgById(msg.getMsgId());
-//                        if (msg.getType().equals(MessageTypes.MSG_TYPE_MUSIC)) {
-//                            if (musicPlayManager != null) {
-//                                ll_playing.setVisibility(View.GONE);
-//                                musicPlayManager.stop();
-//                            }
-//                        }
-//                    }
-//                })
-//                .show();
+        new ActionSheetBottomDialog(this)
+                .builder()
+                .addSheetItem("删除", ActionSheetBottomDialog.SheetItemColor.Blue, new ActionSheetBottomDialog.OnSheetItemClickListener() {
+                    @Override
+                    public void onClick(int which) {
+                        listMsg.remove(position);
+                        offset = listMsg.size();
+                        mLvAdapter.notifyDataSetChanged();
+                        msgDao.deleteMsgById(msg.getMsgId());
+                        if (msg.getType().equals(MessageTypes.MSG_TYPE_MUSIC)) {
+                            if (musicPlayManager != null) {
+                                ll_playing.setVisibility(View.GONE);
+                                musicPlayManager.stop();
+                            }
+                        }
+                    }
+                })
+                .show();
     }
 
     /**
      * 录音完毕
      * text 录音转文字后的内容
      */
-    @Override
-    public void recoComplete(String text) {
-        String voicepath = Const.FILE_VOICE_CACHE + System.currentTimeMillis() + ".wav";
-        if (SysUtils.copyFile(Const.FILE_VOICE_CACHE + "iat.wav", voicepath)) {
-            sendMsgVoice(voicepath + Const.SPILT + text);
-        } else {
-            ToastUtil.showToast(this, "录音失败");
-        }
-    }
+//    @Override
+//    public void recoComplete(String text) {
+//        String voicepath = Const.FILE_VOICE_CACHE + System.currentTimeMillis() + ".wav";
+//        if (SysUtils.copyFile(Const.FILE_VOICE_CACHE + "iat.wav", voicepath)) {
+//            sendMsgVoice(voicepath + Const.SPILT + text);
+//        } else {
+//            ToastUtil.showToast(this, "录音失败");
+//        }
+//    }
 
     /**
      * 表情页改变时，dots效果也要跟着改变
@@ -763,7 +790,7 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
      */
     @Override
     public void onRefresh() {
-        List<Msg> list = msgDao.queryMsg(from, to, offset);
+        List<IMMsg> list = msgDao.queryMsg(from, to, offset);
         if (list.size() <= 0) {
             mListView.setSelection(0);
             mListView.onRefreshCompleteHeader();

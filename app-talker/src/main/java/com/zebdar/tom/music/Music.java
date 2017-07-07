@@ -1,4 +1,4 @@
-package com.zebdar.tom.bean;
+package com.zebdar.tom.music;
 
 /**
  * Created by baiyuliang on 2016-5-13.

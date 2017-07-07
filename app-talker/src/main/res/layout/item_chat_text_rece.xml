@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="#F0F0F0"
     android:orientation="vertical"
-    android:padding="10dip">
+    android:padding="30dip"
+    android:gravity="center"
+    >
 
+    <com.zebdar.tom.CircleImageView
+        android:id="@+id/head_view"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:scaleType="fitXY"
+        android:src="@drawable/miniq_logo" />
     <TextView
         android:id="@+id/chat_time"
         android:layout_width="wrap_content"
@@ -16,32 +24,22 @@
         android:textSize="12sp" />
 
     <LinearLayout
+        android:id="@+id/body_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/chat_time"
         android:layout_marginTop="5dp"
-        android:background="@color/transparent"
+        android:background="@drawable/sel_chat_item_bg_others"
         android:orientation="horizontal"
+        android:gravity="center"
+        android:padding="6dp"
         android:visibility="visible">
-
-        <com.zebdar.tom.CircleImageView
-            android:id="@+id/head_view"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:scaleType="fitXY"
-            android:src="@drawable/miniq_logo" />
-
         <TextView
             android:id="@+id/tv_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginRight="50dp"
-            android:background="@drawable/chatfrom_bg"
             android:gravity="center_vertical"
-            android:paddingBottom="5dp"
-            android:paddingLeft="16dp"
-            android:paddingTop="5dp"
             android:textColor="@color/black"
+            android:text="22222222222"
             android:textSize="14sp" />
     </LinearLayout>
-</RelativeLayout>
+</LinearLayout>

@@ -9,7 +9,12 @@ import com.nostra13.universalimageloader.cache.disc.naming.Md5FileNameGenerator;
 import com.nostra13.universalimageloader.core.ImageLoader;
 import com.nostra13.universalimageloader.core.ImageLoaderConfiguration;
 import com.nostra13.universalimageloader.core.assist.QueueProcessingType;
+import com.zebdar.tom.ai.AiDispatcher;
+import com.zebdar.tom.ai.AiWorker;
+import com.zebdar.tom.ai.OnAiCallback;
+import com.zebdar.tom.chat.ChatActivity;
 import com.zebdar.tom.sdk.DqdCore;
+import com.zebdar.tom.sdk.Lang;
 
 /*
                    _ooOoo_
@@ -69,6 +74,13 @@ public class MyApplication extends Application {
 		}
 
 		DqdCore.init(this, BuildConfig.DEBUG);
+
+		AiDispatcher.addAiWoker("测试通知", new AiWorker() {
+			@Override
+			public void handle(String input, OnAiCallback callback) {
+				Lang.alert(1, "测试", "11223344555", "aaaaa", ChatActivity.class);
+			}
+		});
 	}
 	
 	public  void initImageLoader(Context context) {

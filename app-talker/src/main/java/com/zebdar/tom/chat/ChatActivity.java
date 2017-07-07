@@ -1,9 +1,8 @@
-package com.zebdar.tom;
+package com.zebdar.tom.chat;
 
 import android.annotation.SuppressLint;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.Looper;
 import android.os.Message;
 import android.support.v4.view.ViewPager;
 import android.support.v4.view.ViewPager.OnPageChangeListener;
@@ -21,14 +20,20 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import com.zebdar.tom.bean.Answer;
-import com.zebdar.tom.bean.Music;
-import com.zebdar.tom.chat.MessageTypes;
-import com.zebdar.tom.chat.model.IMessageDao;
+import com.zebdar.tom.AppBaseActivity;
+import com.zebdar.tom.Const;
+import com.zebdar.tom.DropdownListView;
+import com.zebdar.tom.ExpressionUtil;
+import com.zebdar.tom.FaceVPAdapter;
+import com.zebdar.tom.PreferencesUtils;
+import com.zebdar.tom.R;
+import com.zebdar.tom.SysUtils;
+import com.zebdar.tom.ToastUtil;
+import com.zebdar.tom.chat.callback.OnMessageChangedListener;
 import com.zebdar.tom.chat.model.IMMsg;
+import com.zebdar.tom.chat.model.IMessageDao;
 import com.zebdar.tom.chat.model.memdb.MessageCache;
 import com.zebdar.tom.music.MusicPlayManager;
-import com.zebdar.tom.music.MusicSearchUtil;
 import com.zebdar.tom.sdk.Lang;
 import com.zebdar.tom.speech.SpeechCallback;
 import com.zebdar.tom.speech.SpeechInitCallback;
@@ -37,12 +42,10 @@ import com.zebdar.tom.speech.SpeechSynthesizerUtil;
 import com.zebdar.tom.utils.ActionSheetBottomDialog;
 
 import net.tsz.afinal.FinalHttp;
-import net.tsz.afinal.http.AjaxCallBack;
 import net.tsz.afinal.http.AjaxParams;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 
@@ -55,7 +58,7 @@ import java.util.List;
  */
 @SuppressLint("SimpleDateFormat")
 public class ChatActivity extends AppBaseActivity implements DropdownListView.OnRefreshListenerHeader,
-        ChatAdapter.OnClickMsgListener{
+        ChatAdapter.OnClickMsgListener {
     private ViewPager mViewPager;
     private LinearLayout mDotsLayout;
     private EditText input;
@@ -116,14 +119,6 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
                 case 1:
                     mLvAdapter.notifyDataSetChanged();
                     break;
-                case 2:
-                    Music music = (Music) msg.obj;
-                    if (music == null) {
-                        changeList(MessageTypes.MSG_TYPE_TEXT, "歌曲获取失败");
-                    } else {
-                        changeList(MessageTypes.MSG_TYPE_MUSIC, music.getMusicUrl() + Const.SPILT + music.getTitle() + Const.SPILT + music.getDescription());
-                    }
-                    break;
             }
         }
     };
@@ -132,7 +127,7 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_chat);
+        setContentView(R.layout.ac_chat);
         initTitleBar("消息", "小Q", "", this);
         musicPlayManager = new MusicPlayManager();
         fh = new FinalHttp();
@@ -151,6 +146,34 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
         initData();
         //初始化语音听写及合成部分
         initSpeech();
+
+
+        MessageCenter.getDefault().addOnMessageRemoteListener(new OnMessageChangedListener() {
+            @Override
+            public void onAdd(IMMsg msg) {
+                listMsg.add(msg);
+                offset = listMsg.size();
+                mLvAdapter.notifyDataSetChanged();
+                input.setText("");
+            }
+
+            @Override
+            public void onDelete(IMMsg m) {
+                listMsg.remove(m);
+                offset = listMsg.size();
+                mLvAdapter.notifyDataSetChanged();
+            }
+
+            @Override
+            public void onUpdate(IMMsg m) {
+
+            }
+
+            @Override
+            public void onLoading(IMMsg m, boolean isFinish, int progress) {
+
+            }
+        });
     }
 
     private void initSpeech() {
@@ -294,13 +317,16 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
     @Override
     public void onClick(View arg0) {
         super.onClick(arg0);
+        IMMsg msg = null;
         switch (arg0.getId()) {
             case R.id.send_sms://发送
                 String content = input.getText().toString();
                 if (TextUtils.isEmpty(content)) {
                     return;
                 }
-                sendMsgText(content, true);
+                //sendMsgText(content, true);
+                msg = MessageHelper.createTextMessage(content, from, to, true);
+                MessageCenter.getDefault().send(msg);
                 break;
             case R.id.input_sms://点击输入框
                 if (chat_face_container.getVisibility() == View.VISIBLE) {
@@ -337,11 +363,16 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
                 speechRecognizerUtil.recordAndTranslate(new SpeechCallback() {
                     @Override
                     public void onRecognizedOk(String textResult, String audioPath, boolean isLast) {
-                        sendMsgVoice(audioPath + Const.SPILT + textResult);
-                        sendMsgText(textResult, false);
+                        IMMsg msg = MessageHelper.createVoiceMessage(audioPath + Const.SPILT + textResult, from, to, true);
+                        MessageCenter.getDefault().send(msg);
+
+                        msg = MessageHelper.createTextMessage(textResult, from, to, true);
+                        MessageCenter.getDefault().send(msg);
+
                         if(Lang.isEquals(textResult, "四哥")){
                             speechSynthesizerUtil.speech("干啥");
                         }
+
                     }
 
                     @Override
@@ -352,239 +383,48 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
 
                 break;
             case R.id.tv_weather:
-                sendMsgText(PreferencesUtils.getSharePreStr(this, Const.CITY) + "天气", true);
+                msg = MessageHelper.createTextMessage(PreferencesUtils.getSharePreStr(this, Const.CITY) + "天气", from, to, true);
+                MessageCenter.getDefault().send(msg);
                 break;
             case R.id.tv_xingzuo:
                 input.setText("星座#");
                 input.setSelection(input.getText().toString().length());//光标移至最后
-                changeList(MessageTypes.MSG_TYPE_TEXT, "请输入星座#您的星座查询");
+
                 chat_add_container.setVisibility(View.GONE);
                 showSoftInputView(input);
                 break;
             case R.id.tv_joke:
-                sendMsgText("笑话", true);
+                msg = MessageHelper.createTextMessage("笑话", from, to, true);
+                MessageCenter.getDefault().send(msg);
                 break;
             case R.id.tv_loc:
-                sendMsgText("位置", false);
+                msg = MessageHelper.createTextMessage("位置", from, to, true);
+                MessageCenter.getDefault().send(msg);
+
                 String lat = PreferencesUtils.getSharePreStr(this, Const.LOCTION);//经纬度
                 if (TextUtils.isEmpty(lat)) {
                     lat = "116.404,39.915";//北京
                 }
-                changeList(MessageTypes.MSG_TYPE_LOCATION, Const.LOCATION_URL_S + lat + "&markers=|" + lat + "&markerStyles=l,A,0xFF0000");//传入地图（图片）路径
+
+                String imgUrl = Const.LOCATION_URL_S + lat + "&markers=|" + lat + "&markerStyles=l,A,0xFF0000";
+                msg = MessageHelper.createLocationMessage(imgUrl, from, to, false);
+                MessageCenter.getDefault().onReceive(msg);
                 break;
             case R.id.tv_gg:
-                sendMsgText("帅哥", true);
+
                 break;
             case R.id.tv_mm:
-                sendMsgText("美女", true);
+
                 break;
             case R.id.tv_music:
                 input.setText("歌曲##");
                 input.setSelection(input.getText().toString().length() - 1);
-                changeList(MessageTypes.MSG_TYPE_TEXT, "请输入：歌曲#歌曲名#演唱者");
                 chat_add_container.setVisibility(View.GONE);
                 showSoftInputView(input);
                 break;
         }
     }
 
-    /**
-     * 执行发送消息 文本类型
-     * isReqApi 是否调用api回答问题
-     *
-     * @param content
-     */
-    public void sendMsgText(String content, boolean isReqApi) {
-        if (content.endsWith("##")) {
-            ToastUtil.showToast(this, "输入有误");
-            return;
-        }
-        IMMsg msg = getChatInfoTo(content, MessageTypes.MSG_TYPE_TEXT);
-        msg.setMsgId(msgDao.insert(msg));
-        listMsg.add(msg);
-        offset = listMsg.size();
-        mLvAdapter.notifyDataSetChanged();
-        input.setText("");
-        if (isReqApi) getFromMsg(MessageTypes.MSG_TYPE_TEXT, content);
-
-
-    }
-
-    /**
-     * 执行发送消息 图片类型
-     */
-    void sendMsgImg(String imgpath) {
-        IMMsg msg = getChatInfoTo(imgpath, MessageTypes.MSG_TYPE_IMG);
-        msg.setMsgId(msgDao.insert(msg));
-        listMsg.add(msg);
-        offset = listMsg.size();
-        mLvAdapter.notifyDataSetChanged();
-
-    }
-
-    /**
-     * 执行发送消息 位置类型
-     *
-     * @param content
-     */
-    void sendMsgLocation(String content) {
-        IMMsg msg = getChatInfoTo(content, MessageTypes.MSG_TYPE_LOCATION);
-        msg.setMsgId(msgDao.insert(msg));
-        listMsg.add(msg);
-        offset = listMsg.size();
-        mLvAdapter.notifyDataSetChanged();
-    }
-
-    /**
-     * 发送语音
-     *
-     * @param content
-     */
-    void sendMsgVoice(String content) {
-        String[] _content = content.split(Const.SPILT);
-        IMMsg msg = getChatInfoTo(content, MessageTypes.MSG_TYPE_VOICE);
-        msg.setMsgId(msgDao.insert(msg));
-        listMsg.add(msg);
-        offset = listMsg.size();
-        mLvAdapter.notifyDataSetChanged();
-        getFromMsg(MessageTypes.MSG_TYPE_TEXT, _content[1]);
-    }
-
-    /**
-     * 发送的信息
-     * from为收到的消息，to为自己发送的消息
-     *
-     * @return
-     */
-    private IMMsg getChatInfoTo(String message, String msgtype) {
-        String time = sd.format(new Date());
-        IMMsg msg = new IMMsg();
-        msg.setFromUser(from);
-        msg.setToUser(to);
-        msg.setType(msgtype);
-        msg.setIsComing(1);
-        msg.setContent(message);
-        msg.setDate(time);
-        return msg;
-    }
-
-    /**
-     * 获取结果
-     *
-     * @param msgtype
-     * @param info
-     */
-    private void getFromMsg(final String msgtype, String info) {
-        if (info.startsWith("星座#") && info.length() > 3) {
-            getResponse(msgtype, info.split("#")[1] + "运势");
-        } else if (info.startsWith("歌曲#") && info.split("#").length == 3) {
-            String[] _info = info.split("#");
-            if (TextUtils.isEmpty(_info[1]) || TextUtils.isEmpty(_info[2])) {
-                ToastUtil.showToast(this, "输入有误");
-                return;
-            }
-            getMusic(_info[1], _info[2]);
-        } else {
-            getResponse(msgtype, info);
-        }
-    }
-
-    /**
-     * 调用机器人api获取回答结果
-     *
-     * @param msgtype
-     * @param info
-     */
-    void getResponse(final String msgtype, String info) {
-        ajaxParams=new AjaxParams();
-        ajaxParams.put("key",Const.ROBOT_KEY);
-        ajaxParams.put("info",info);
-        fh.post(Const.ROBOT_URL,ajaxParams, new AjaxCallBack<Object>() {
-            @Override
-            public void onSuccess(Object o) {
-                super.onSuccess(o);
-                LogUtil.e("response>>" + o);
-                Answer answer = PraseUtil.praseMsgText((String) o);
-                String responeContent;
-                if (answer == null) {
-                    responeContent = "网络错误";
-                    changeList(msgtype, responeContent);
-                } else {
-                    switch (answer.getCode()) {
-                        case "40001"://参数key错误
-                        case "40002"://请求内容info为空
-                        case "40004"://当天请求次数已使用完
-                        case "40007"://数据格式异常
-                        case "100000"://文本
-                            responeContent = answer.getText();
-                            changeList(msgtype, responeContent);
-                            break;
-                        case "200000"://链接
-                            responeContent = answer.getText() + answer.getUrl();
-                            changeList(msgtype, responeContent);
-                            break;
-                        case "302000"://新闻
-                        case "308000"://菜谱
-                            responeContent=answer.getJsoninfo();
-                            changeList(MessageTypes.MSG_TYPE_LIST, responeContent);
-                            break;
-                    }
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable t, int errorNo, String strMsg) {
-                super.onFailure(t, errorNo, strMsg);
-                changeList(msgtype, "网络连接失败");
-            }
-        });
-    }
-
-    /**
-     * 获取音乐链接
-     *
-     * @param name
-     * @param author
-     */
-    void getMusic(final String name, final String author) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                Music music = MusicSearchUtil.searchMusic(name, author);
-                Message msg = new Message();
-                msg.what = 2;
-                msg.obj = music;
-                mHandler.sendMessage(msg);
-            }
-        }).start();
-    }
-
-    /**
-     * 刷新数据
-     *
-     * @param msgtype
-     * @param responeContent
-     */
-    private void changeList(String msgtype, String responeContent) {
-        IMMsg msg = new IMMsg();
-        msg.setIsComing(0);
-        msg.setContent(responeContent);
-        msg.setType(msgtype);
-        msg.setFromUser(from);
-        msg.setToUser(to);
-        msg.setDate(sd.format(new Date()));
-        msg.setMsgId(msgDao.insert(msg));
-        listMsg.add(msg);
-        offset = listMsg.size();
-        mLvAdapter.notifyDataSetChanged();
-        if (msg.getType().equals(MessageTypes.MSG_TYPE_TEXT)) {
-            String speech_type = PreferencesUtils.getSharePreStr(this, Const.IM_SPEECH_TPPE);
-            if (!TextUtils.isEmpty(speech_type) && speech_type.equals("1")) {
-                speechSynthesizerUtil.speech(msg.getContent());
-            }
-        }
-
-    }
 
     @Override
     public void click(int position) {//点击
@@ -603,29 +443,6 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
             case MessageTypes.MSG_TYPE_VOICE://语音
 
                 break;
-            case MessageTypes.MSG_TYPE_MUSIC://音乐
-                String[] musicinfo = msg.getContent().split(Const.SPILT);
-                if (musicinfo.length == 3) {//音乐链接，歌曲名，作者
-                    if (TextUtils.isEmpty(msg.getBak1()) || msg.getBak1().equals("0")) {
-                        stopOldMusic();
-                        msg.setBak1("1");
-                        listMsg.remove(position);
-                        listMsg.add(position, msg);
-                        mLvAdapter.notifyDataSetChanged();
-                        playMusic(musicinfo);
-                    } else {
-                        if (musicPlayManager != null) {
-                            ll_playing.setVisibility(View.GONE);
-                            musicPlayManager.stop();
-                        }
-                        msg.setBak1("0");
-                        listMsg.remove(position);
-                        listMsg.add(position, msg);
-                        mLvAdapter.notifyDataSetChanged();
-                    }
-
-                }
-                break;
         }
     }
 
@@ -639,56 +456,9 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
             case MessageTypes.MSG_TYPE_IMG://图片
                 break;
             case MessageTypes.MSG_TYPE_LOCATION://位置
-            case MessageTypes.MSG_TYPE_MUSIC://音乐
             case MessageTypes.MSG_TYPE_VOICE://语音
-            case MessageTypes.MSG_TYPE_LIST://列表
                 delonly(msg, position);
                 break;
-        }
-    }
-
-    /**
-     * 播放网络音乐
-     *
-     * @param musicinfo
-     */
-    void playMusic(final String[] musicinfo) {
-        ll_playing.setVisibility(View.VISIBLE);
-        tv_playing.setText("正在播放歌曲：《" + musicinfo[1] + "》—" + musicinfo[2]);
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    musicPlayManager.play(musicinfo[0]);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    LogUtil.e("音乐播放异常>>" + e.getMessage());
-                    stopOldMusic();
-                    Looper.prepare();
-                    ToastUtil.showToast(ChatActivity.this, "播放错误，请重试");
-                    Looper.loop();
-                }
-            }
-        }).start();
-    }
-
-    /**
-     * 停止之前正在播放的音乐
-     */
-    void stopOldMusic() {
-        for (int i = 0; i < listMsg.size(); i++) {
-            IMMsg msg = listMsg.get(i);
-            if (!TextUtils.isEmpty(msg.getBak1()) && msg.getBak1().equals("1")) {
-                msg.setBak1("0");
-                listMsg.remove(i);
-                listMsg.add(i, msg);
-                mLvAdapter.notifyDataSetChanged();
-                if (musicPlayManager != null) {
-                    ll_playing.setVisibility(View.GONE);
-                    musicPlayManager.stop();
-                }
-                break;
-            }
         }
     }
 
@@ -715,10 +485,7 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
                 .addSheetItem("删除", ActionSheetBottomDialog.SheetItemColor.Blue, new ActionSheetBottomDialog.OnSheetItemClickListener() {
                     @Override
                     public void onClick(int which) {
-                        listMsg.remove(position);
-                        offset = listMsg.size();
-                        mLvAdapter.notifyDataSetChanged();
-                        msgDao.deleteMsgById(msg.getMsgId());
+                        MessageCenter.getDefault().delete(msg);
                     }
                 })
                 .show();
@@ -735,34 +502,12 @@ public class ChatActivity extends AppBaseActivity implements DropdownListView.On
                 .addSheetItem("删除", ActionSheetBottomDialog.SheetItemColor.Blue, new ActionSheetBottomDialog.OnSheetItemClickListener() {
                     @Override
                     public void onClick(int which) {
-                        listMsg.remove(position);
-                        offset = listMsg.size();
-                        mLvAdapter.notifyDataSetChanged();
-                        msgDao.deleteMsgById(msg.getMsgId());
-                        if (msg.getType().equals(MessageTypes.MSG_TYPE_MUSIC)) {
-                            if (musicPlayManager != null) {
-                                ll_playing.setVisibility(View.GONE);
-                                musicPlayManager.stop();
-                            }
-                        }
+                        MessageCenter.getDefault().delete(msg);
+//                        msgDao.deleteMsgById(msg.getMsgId());
                     }
                 })
                 .show();
     }
-
-    /**
-     * 录音完毕
-     * text 录音转文字后的内容
-     */
-//    @Override
-//    public void recoComplete(String text) {
-//        String voicepath = Const.FILE_VOICE_CACHE + System.currentTimeMillis() + ".wav";
-//        if (SysUtils.copyFile(Const.FILE_VOICE_CACHE + "iat.wav", voicepath)) {
-//            sendMsgVoice(voicepath + Const.SPILT + text);
-//        } else {
-//            ToastUtil.showToast(this, "录音失败");
-//        }
-//    }
 
     /**
      * 表情页改变时，dots效果也要跟着改变

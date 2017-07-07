@@ -2,6 +2,8 @@ package com.zebdar.tom.chat.model;
 
 import java.io.Serializable;
 
+import static android.R.attr.id;
+
 /**
  * 聊天信息表
  * @author 白玉梁
@@ -128,5 +130,26 @@ public class IMMsg implements Serializable {
 
 	public void setJsoninfo(String jsoninfo) {
 		this.jsoninfo = jsoninfo;
+	}
+
+	@Override
+	public boolean equals(Object o){
+
+		if(this == o) return true;
+		if(!(o instanceof IMMsg)) return false;
+		IMMsg t = (IMMsg)o;
+		//对每个关键域进行检查，并要避免null
+		if(!(id == t.getMsgId())){
+			return false;
+		}
+
+		//继续下一个field：任何一个不equals，都返回false
+		//...
+
+		//通过所有检查，返回true
+		return true;
+
+
+		//覆盖了equals方法，总是需要覆盖hashCode
 	}
 }
